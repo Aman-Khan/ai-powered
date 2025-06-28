@@ -1,16 +1,34 @@
 // Import 'dotenv/config' to load environment variables from .env file
-import 'dotenv/config'; 
+import 'dotenv/config';
 import express, { Express, Request, Response } from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import cors from 'cors';
+
+// CORS configuration
+const corsOptions = {
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+};
+
 
 // Initialize the Express application
 const app: Express = express();
 // Define the port, using process.env.PORT for flexibility (e.g., for deployment) or default to 3000
 const port = process.env.PORT || 3000;
 
+// --- CORS Configuration ---
+// Enable CORS for all origins during development.
+// For production, you should restrict this to specific origins for security.
+app.use(cors());
+
 // Middleware: Enable JSON body parsing for incoming requests.
 // This is essential for handling POST requests with JSON payloads.
 app.use(express.json());
+app.use(cors(corsOptions));
+
+// Optional: Handle OPTIONS requests explicitly
+app.options('*', cors(corsOptions));
 
 // --- Routes ---
 
@@ -45,15 +63,12 @@ app.post('/api/generate', async (req: Request, res: Response) => {
 
   try {
     // Initialize the Google Generative AI client with the API key.
-    const genAI = new GoogleGenerativeAI(apiKey); 
-    
+    const genAI = new GoogleGenerativeAI(apiKey);
+
     // Define the model configuration.
     const modelId = 'gemini-2.5-pro';
     const generationConfig = {
-      // The 'thinkingBudget: -1' is not a standard configuration property for the public API.
-      // It's cast to 'any' to avoid type errors, but it's recommended to remove
-      // if it causes issues or isn't officially supported.
-      responseMimeType: 'text/plain' as any, 
+      responseMimeType: 'text/plain' as any,
     };
 
     // Prepare the content for the API request.
@@ -69,18 +84,17 @@ app.post('/api/generate', async (req: Request, res: Response) => {
     ];
 
     // Call the Gemini API to generate content.
-    // The 'await' keyword ensures the promise resolves before accessing '.stream'.
     const response = await genAI.getGenerativeModel({ model: modelId }).generateContentStream({
       contents,
-      generationConfig: generationConfig as any 
+      generationConfig: generationConfig as any
     });
 
     // Collect all streamed chunks to form the complete response text.
     let fullResponseText = '';
     // Iterate over the 'stream' property of the awaited 'response' object.
-    for await (const chunk of response.stream) { 
-      // FIX: Use chunk.text() method to correctly extract the text content from the chunk.
-      if (chunk.text()) { 
+    for await (const chunk of response.stream) {
+      // Use chunk.text() method to correctly extract the text content from the chunk.
+      if (chunk.text()) {
         fullResponseText += chunk.text();
       }
     }
